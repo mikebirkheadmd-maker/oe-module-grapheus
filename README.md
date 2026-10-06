@@ -24,7 +24,7 @@ git clone https://github.com/mikebirkheadmd-maker/oe-module-grapheus.git
 ```
 then *Modules > Manage Modules* → Install → Enable (or `php oe-module-grapheus/install/autoinstall.php`).
 
-**New practice — OpenEMR with Grapheus built in:** download `distribution/docker-compose.yml`, change the passwords, run `docker compose up -d`. It uses the image `ghcr.io/mikebirkheadmd-maker/openemr-grapheus:7.0.3`; Grapheus installs and enables itself on first start.
+**New practice — OpenEMR with Grapheus built in:** download `distribution/docker-compose.yml`, change the passwords, run `docker compose up -d`. It uses the image `ghcr.io/mikebirkheadmd-maker/openemr-with-grapheus:7.0.3`; Grapheus installs and enables itself on first start.
 
 Sign up at https://scribe.exetazohealth.com, then press **Connect** in the Grapheus tab.
 
