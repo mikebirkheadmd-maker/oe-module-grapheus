@@ -11,6 +11,8 @@
  * @license   https://github.com/openemr/openemr/blob/master/LICENSE GNU General Public License 3
  */
 
+declare(strict_types=1);
+
 namespace Exetazo\Grapheus;
 
 use OpenEMR\Common\Csrf\CsrfUtils;
