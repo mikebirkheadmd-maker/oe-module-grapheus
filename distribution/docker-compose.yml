@@ -1,0 +1,25 @@
+# Run OpenEMR + Grapheus on any server with Docker:
+#   docker compose up -d     then open http://<server>:80 (put HTTPS in front for real use)
+# Change every password below before using it with real patients.
+services:
+  mysql:
+    image: mariadb:11.4
+    restart: always
+    command: ['mariadbd', '--character-set-server=utf8mb4']
+    environment:
+      MYSQL_ROOT_PASSWORD: change-this-root-password
+    volumes: [databasevolume:/var/lib/mysql]
+  openemr:
+    image: ghcr.io/mikebirkheadmd-maker/openemr-with-grapheus:7.0.3
+    restart: always
+    ports: ["80:80", "443:443"]
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_ROOT_PASS: change-this-root-password
+      MYSQL_USER: openemr
+      MYSQL_PASS: change-this-db-password
+      OE_USER: admin
+      OE_PASS: change-this-admin-password
+    volumes: [logvolume01:/var/log, sitevolume:/var/www/localhost/htdocs/openemr/sites]
+    depends_on: [mysql]
+volumes: { logvolume01: {}, sitevolume: {}, databasevolume: {} }
