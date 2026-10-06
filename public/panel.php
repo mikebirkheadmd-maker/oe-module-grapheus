@@ -9,16 +9,17 @@
  */
 
 require_once dirname(__FILE__, 5) . "/globals.php";
+require_once dirname(__DIR__) . '/src/Compat.php';
+(new \OpenEMR\Core\ModulesClassLoader(\Exetazo\Grapheus\Compat::fileroot()))->registerNamespaceIfNotExists('Exetazo\\Grapheus\\', dirname(__DIR__) . '/src');
 
 use OpenEMR\Common\Acl\AclMain;
-use OpenEMR\Common\Csrf\CsrfUtils;
 use OpenEMR\Core\Header;
 
 if (!AclMain::aclCheckCore('encounters', 'notes', '', 'write') && !AclMain::aclCheckCore('encounters', 'notes_a', '', 'write')) {
     echo xlt('Not authorized');
     exit;
 }
-$base = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module-grapheus/public';
+$base = \Exetazo\Grapheus\Compat::moduleUrl();
 ?>
 <!doctype html>
 <html>
@@ -31,8 +32,8 @@ $base = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module-graph
 <div id="grapheus" class="container-fluid py-2"
      data-api="<?php echo attr($base . '/api.php'); ?>"
      data-recorder="<?php echo attr($base . '/recorder.php'); ?>"
-     data-csrf="<?php echo attr(CsrfUtils::collectCsrfToken('grapheus')); ?>"
-     data-encounter-url="<?php echo attr($GLOBALS['webroot'] . '/interface/patient_file/encounter/forms.php'); ?>">
+     data-csrf="<?php echo attr(\Exetazo\Grapheus\Compat::csrfToken()); ?>"
+     data-encounter-url="<?php echo attr(\Exetazo\Grapheus\Compat::webroot() . '/interface/patient_file/encounter/forms.php'); ?>">
     <div class="d-flex align-items-center mb-2">
         <h4 class="mb-0 mr-2">Grapheus</h4><small class="text-muted"><?php echo xlt('AI scribe by Exetazo'); ?></small>
         <span class="ml-auto small" id="g-account"></span>

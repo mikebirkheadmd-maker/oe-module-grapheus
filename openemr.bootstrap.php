@@ -1,7 +1,8 @@
 <?php
 
 /**
- * Grapheus by Exetazo: adds a "Grapheus" tab to every encounter.
+ * Grapheus by Exetazo: a "Grapheus" tab in every encounter (the AI scribe)
+ * and a "Grapheus" item in the main menu (the Assistant).
  *
  * @package   Grapheus
  * @link      https://scribe.exetazohealth.com
@@ -9,34 +10,31 @@
  * @license   https://github.com/openemr/openemr/blob/master/LICENSE GNU General Public License 3
  */
 
+use Exetazo\Grapheus\Compat;
 use OpenEMR\Common\Acl\AclMain;
 use OpenEMR\Core\ModulesClassLoader;
 use OpenEMR\Events\Encounter\EncounterMenuEvent;
 use OpenEMR\Menu\MenuEvent;
+use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 
 /**
- * @var Symfony\Component\EventDispatcher\EventDispatcherInterface $eventDispatcher
- * @var array $module
+ * @var EventDispatcherInterface $eventDispatcher  provided by the module loader
+ * @var ModulesClassLoader       $classLoader      provided by the module loader
  */
-$classLoader = new ModulesClassLoader($GLOBALS['fileroot']);
 $classLoader->registerNamespaceIfNotExists('Exetazo\\Grapheus\\', __DIR__ . DIRECTORY_SEPARATOR . 'src');
 
-$eventDispatcher->addListener(EncounterMenuEvent::MENU_RENDER, function (EncounterMenuEvent $event) {
-    // Only people who can write encounter notes see it.
+$eventDispatcher->addListener(EncounterMenuEvent::MENU_RENDER, static function (EncounterMenuEvent $event): EncounterMenuEvent {
+    // Only people who can write encounter notes see the scribe.
     if (!AclMain::aclCheckCore('encounters', 'notes', '', 'write') && !AclMain::aclCheckCore('encounters', 'notes_a', '', 'write')) {
         return $event;
     }
     $menu = $event->getMenuData();
-    $menu['Grapheus'] = [
-        'displayText' => 'Grapheus',
-        'formURL' => $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module-grapheus/public/panel.php',
-    ];
+    $menu['Grapheus'] = ['displayText' => 'Grapheus', 'formURL' => Compat::moduleUrl('panel.php')];
     $event->setMenuData($menu);
     return $event;
 });
 
-// A "Grapheus" item in the main menu bar: the Assistant (set up, show me how, schedule).
-$eventDispatcher->addListener(MenuEvent::MENU_UPDATE, function (MenuEvent $event) {
+$eventDispatcher->addListener(MenuEvent::MENU_UPDATE, static function (MenuEvent $event): MenuEvent {
     $menu = $event->getMenu();
     $item = new stdClass();
     $item->requirement = 0;
@@ -51,4 +49,3 @@ $eventDispatcher->addListener(MenuEvent::MENU_UPDATE, function (MenuEvent $event
     $event->setMenu($menu);
     return $event;
 });
-

@@ -10,16 +10,22 @@
  */
 
 require_once dirname(__FILE__, 5) . "/globals.php";
+require_once dirname(__DIR__) . '/src/Compat.php';
+(new \OpenEMR\Core\ModulesClassLoader(\Exetazo\Grapheus\Compat::fileroot()))->registerNamespaceIfNotExists('Exetazo\\Grapheus\\', dirname(__DIR__) . '/src');
 
 use OpenEMR\Common\Acl\AclMain;
-use OpenEMR\Common\Csrf\CsrfUtils;
 
 if (!AclMain::aclCheckCore('encounters', 'notes', '', 'write') && !AclMain::aclCheckCore('encounters', 'notes_a', '', 'write')) {
     echo xlt('Not authorized');
     exit;
 }
-$base = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module-grapheus/public';
-$patient = !empty($_SESSION['pid']) ? getPatientData((int) $_SESSION['pid'], 'fname, lname') : [];
+$base = \Exetazo\Grapheus\Compat::moduleUrl();
+$query = \Exetazo\Grapheus\Compat::request()->query;
+$mode = \Exetazo\Grapheus\Val::str($query->get('mode')) === 'telehealth' ? 'telehealth' : 'in_person';
+$ptype = \Exetazo\Grapheus\Val::str($query->get('ptype')) === 'new' ? 'new' : 'established';
+$prep = max(0, min(240, \Exetazo\Grapheus\Val::int($query->get('prep'))));
+$sessPid = \Exetazo\Grapheus\Val::int(\Exetazo\Grapheus\Compat::get('pid', 0));
+$patient = $sessPid > 0 ? \Exetazo\Grapheus\Val::map(getPatientData($sessPid, 'fname, lname')) : [];
 ?>
 <!doctype html>
 <html>
@@ -29,9 +35,9 @@ $patient = !empty($_SESSION['pid']) ? getPatientData((int) $_SESSION['pid'], 'fn
     <link rel="stylesheet" href="<?php echo attr($base); ?>/assets/grapheus.css?v=1">
 </head>
 <body class="g-rec">
-<main id="rec" data-api="<?php echo attr($base . '/api.php'); ?>" data-csrf="<?php echo attr(CsrfUtils::collectCsrfToken('grapheus')); ?>"
-      data-mode="<?php echo attr($_GET['mode'] ?? 'in_person'); ?>" data-ptype="<?php echo attr($_GET['ptype'] ?? 'established'); ?>" data-prep="<?php echo attr((string) (int) ($_GET['prep'] ?? 0)); ?>">
-    <div class="g-rec-head"><b>Grapheus</b> <span><?php echo text(trim(($patient['fname'] ?? '') . ' ' . ($patient['lname'] ?? ''))); ?></span></div>
+<main id="rec" data-api="<?php echo attr($base . '/api.php'); ?>" data-csrf="<?php echo attr(\Exetazo\Grapheus\Compat::csrfToken()); ?>"
+      data-mode="<?php echo attr($mode); ?>" data-ptype="<?php echo attr($ptype); ?>" data-prep="<?php echo attr((string) $prep); ?>">
+    <div class="g-rec-head"><b>Grapheus</b> <span><?php echo text(trim(\Exetazo\Grapheus\Val::str($patient['fname'] ?? '') . ' ' . \Exetazo\Grapheus\Val::str($patient['lname'] ?? ''))); ?></span></div>
     <div class="g-rec-state"><span class="g-dot" id="dot"></span><span id="state"><?php echo xlt('Starting…'); ?></span></div>
     <div class="g-timer" id="timer">0:00</div>
     <div class="g-meter"><div id="level"></div></div>

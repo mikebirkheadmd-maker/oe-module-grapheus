@@ -1,6 +1,6 @@
 # OpenEMR with Grapheus by Exetazo built in.
 # Grapheus does nothing until a practice connects a paid Grapheus account.
-ARG OPENEMR_VERSION=7.0.3
+ARG OPENEMR_VERSION=8.4.1
 FROM openemr/openemr:${OPENEMR_VERSION}
 LABEL org.opencontainers.image.title="OpenEMR + Grapheus" \
       org.opencontainers.image.description="OpenEMR with the Grapheus AI scribe and Setup Assistant preinstalled (requires a Grapheus subscription)." \

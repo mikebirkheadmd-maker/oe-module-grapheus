@@ -10,7 +10,7 @@ services:
       MYSQL_ROOT_PASSWORD: change-this-root-password
     volumes: [databasevolume:/var/lib/mysql]
   openemr:
-    image: ghcr.io/mikebirkheadmd-maker/openemr-with-grapheus:7.0.3
+    image: ghcr.io/mikebirkheadmd-maker/openemr-with-grapheus:8.4.1
     restart: always
     ports: ["80:80", "443:443"]
     environment:

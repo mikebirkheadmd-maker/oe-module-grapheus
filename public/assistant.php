@@ -9,11 +9,12 @@
  */
 
 require_once dirname(__FILE__, 5) . "/globals.php";
+require_once dirname(__DIR__) . '/src/Compat.php';
+(new \OpenEMR\Core\ModulesClassLoader(\Exetazo\Grapheus\Compat::fileroot()))->registerNamespaceIfNotExists('Exetazo\\Grapheus\\', dirname(__DIR__) . '/src');
 
-use OpenEMR\Common\Csrf\CsrfUtils;
 use OpenEMR\Core\Header;
 
-$base = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module-grapheus/public';
+$base = \Exetazo\Grapheus\Compat::moduleUrl();
 ?>
 <!doctype html>
 <html>
@@ -23,7 +24,7 @@ $base = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module-graph
     <link rel="stylesheet" href="<?php echo attr($base); ?>/assets/grapheus.css?v=2">
 </head>
 <body class="body_top">
-<div id="grapheus" class="container py-3" data-api="<?php echo attr($base . '/api.php'); ?>" data-csrf="<?php echo attr(CsrfUtils::collectCsrfToken('grapheus')); ?>">
+<div id="grapheus" class="container py-3" data-api="<?php echo attr($base . '/api.php'); ?>" data-csrf="<?php echo attr(\Exetazo\Grapheus\Compat::csrfToken()); ?>">
     <div class="d-flex align-items-center mb-2">
         <h4 class="mb-0 mr-2">Grapheus Assistant</h4><small class="text-muted"><?php echo xlt('by Exetazo'); ?></small>
         <span class="ml-auto small text-muted" id="a-role"></span>

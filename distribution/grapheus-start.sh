@@ -5,7 +5,7 @@
   i=0
   while [ $i -lt 180 ]; do
     if grep -q '^\$config = 1' /var/www/localhost/htdocs/openemr/sites/default/sqlconf.php 2>/dev/null; then
-      if php /var/www/localhost/htdocs/openemr/interface/modules/custom_modules/oe-module-grapheus/install/autoinstall.php default; then
+      if su -s /bin/sh apache -c "php /var/www/localhost/htdocs/openemr/interface/modules/custom_modules/oe-module-grapheus/install/autoinstall.php"; then
         exit 0
       fi
     fi
