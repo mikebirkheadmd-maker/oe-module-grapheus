@@ -12,5 +12,12 @@
 declare(strict_types=1);
 
 $module_config = 1;
+// Shown before the module is enabled too, so load our classes ourselves.
+if (!class_exists(\Exetazo\Grapheus\Compat::class)) {
+    require_once __DIR__ . '/src/Val.php';
+    require_once __DIR__ . '/src/Compat.php';
+}
+$logo = \Exetazo\Grapheus\Compat::moduleUrl() . '/assets/img/grapheus-logo.png';
+echo '<p><img src="' . attr($logo) . '" alt="' . attr(xl('Grapheus by Exetazo')) . '" style="height:56px;width:auto"></p>';
 echo '<p>' . text(xl('Open any encounter and choose the Grapheus tab to connect your Grapheus account and start recording.')) . '</p>';
 echo '<p><a href="https://scribe.exetazohealth.com" target="_blank" rel="noopener">scribe.exetazohealth.com</a></p>';

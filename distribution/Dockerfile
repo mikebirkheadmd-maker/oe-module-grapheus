@@ -6,6 +6,8 @@ LABEL org.opencontainers.image.title="OpenEMR + Grapheus" \
       org.opencontainers.image.description="OpenEMR with the Grapheus AI scribe and Setup Assistant preinstalled (requires a Grapheus subscription)." \
       org.opencontainers.image.vendor="Exetazo Health" \
       org.opencontainers.image.licenses="GPL-3.0-or-later" \
+      org.opencontainers.image.url="https://scribe.exetazohealth.com" \
+      org.opencontainers.image.documentation="https://github.com/mikebirkheadmd-maker/oe-module-grapheus#readme" \
       org.opencontainers.image.source="https://github.com/mikebirkheadmd-maker/oe-module-grapheus"
 # Build from the repository root:  docker build -f distribution/Dockerfile .
 COPY . /var/www/localhost/htdocs/openemr/interface/modules/custom_modules/oe-module-grapheus

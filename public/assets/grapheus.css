@@ -1,4 +1,10 @@
 /* Grapheus by Exetazo */
+.g-brand-icon {
+  border-radius: 4px;
+  vertical-align: middle;
+  flex: none;
+}
+
 #grapheus h4 {
   color: #022c44;
 }

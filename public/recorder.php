@@ -34,12 +34,13 @@ $patient = $sessPid > 0 ? \Exetazo\Grapheus\Val::map(getPatientData($sessPid, 'f
 <head>
     <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?php echo xlt('Grapheus recorder'); ?></title>
-    <link rel="stylesheet" href="<?php echo attr($base); ?>/assets/grapheus.css?v=1">
+    <link rel="icon" type="image/png" sizes="32x32" href="<?php echo attr($base); ?>/assets/img/grapheus-icon-32.png">
+    <link rel="stylesheet" href="<?php echo attr($base); ?>/assets/grapheus.css?v=3">
 </head>
 <body class="g-rec">
 <main id="rec" data-api="<?php echo attr($base . '/api.php'); ?>" data-csrf="<?php echo attr(\Exetazo\Grapheus\Compat::csrfToken()); ?>"
       data-mode="<?php echo attr($mode); ?>" data-ptype="<?php echo attr($ptype); ?>" data-prep="<?php echo attr((string) $prep); ?>">
-    <div class="g-rec-head"><b>Grapheus</b> <span><?php echo text(trim(\Exetazo\Grapheus\Val::str($patient['fname'] ?? '') . ' ' . \Exetazo\Grapheus\Val::str($patient['lname'] ?? ''))); ?></span></div>
+    <div class="g-rec-head"><img class="g-brand-icon" src="<?php echo attr($base); ?>/assets/img/grapheus-icon-32.png" width="18" height="18" alt=""> <b>Grapheus</b> <span><?php echo text(trim(\Exetazo\Grapheus\Val::str($patient['fname'] ?? '') . ' ' . \Exetazo\Grapheus\Val::str($patient['lname'] ?? ''))); ?></span></div>
     <div class="g-rec-state"><span class="g-dot" id="dot"></span><span id="state"><?php echo xlt('Starting…'); ?></span></div>
     <div class="g-timer" id="timer">0:00</div>
     <div class="g-meter"><div id="level"></div></div>

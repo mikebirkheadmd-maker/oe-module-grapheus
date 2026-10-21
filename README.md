@@ -1,3 +1,5 @@
+<p align="center"><img src="https://raw.githubusercontent.com/mikebirkheadmd-maker/oe-module-grapheus/main/public/assets/img/grapheus-logo.png" alt="Grapheus by Exetazo" width="420"></p>
+
 # Grapheus for OpenEMR
 
 **Grapheus by Exetazo** is an AI medical scribe built by a practicing physician. This module puts it inside OpenEMR: record the visit, then review a drafted SOAP note, problems, allergies, prescriptions and fee-sheet codes right in the encounter. Clinicians review and sign everything; nothing is sent or billed automatically.

@@ -49,6 +49,12 @@
     "extra": {
         "branch-alias": {
             "dev-openemr-7.0": "1.x-dev"
+        },
+        "openemr": {
+            "logo": "public/assets/img/grapheus-logo.png",
+            "icon": "public/assets/img/grapheus-icon-180.png",
+            "logo-url": "https://raw.githubusercontent.com/mikebirkheadmd-maker/oe-module-grapheus/main/public/assets/img/grapheus-logo.png",
+            "icon-url": "https://raw.githubusercontent.com/mikebirkheadmd-maker/oe-module-grapheus/main/public/assets/img/grapheus-icon-180.png"
         }
     }
 }
