@@ -63,7 +63,11 @@ Download `distribution/docker-compose.yml`, change the passwords, and run `docke
 Create an account at https://scribe.exetazohealth.com, then press **Connect** in any encounter's Grapheus tab.
 
 ## Subscription
-The module is free and open source. Transcription, AI drafting and the Assistant run on the Grapheus service and need a Grapheus subscription. Assistant requests are billed to the practice's Grapheus account. Plans and pricing: https://scribe.exetazohealth.com
+The module is free and open source. Transcription, AI drafting and the Assistant run on the Grapheus service:
+- **AI scribe:** $120 per provider per month, 120 recorded hours included, then $1.50 an hour.
+- **Grapheus Assistant:** $30 per practice per month, 100 requests included, then $0.30 a request, billed to the practice's Grapheus account. Months with no requests are not charged.
+
+Details: https://scribe.exetazohealth.com
 
 ## Privacy and HIPAA
 Grapheus runs on AWS, with AI drafting on Amazon Bedrock under an AWS Business Associate Agreement, so protected health information stays in a HIPAA-eligible environment. Audio is deleted after transcription, and drafts are encrypted and deleted after 48 hours. Practices sign a BAA with Exetazo Health when they sign up.
