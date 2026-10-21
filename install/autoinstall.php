@@ -18,6 +18,10 @@ if (PHP_SAPI !== 'cli') {
     exit(1);
 }
 $ignoreAuth = true;
+// globals.php needs a site and a host; on the command line there is neither.
+$_GET['site'] = $_GET['site'] ?? (getenv('OPENEMR_SITE') ?: 'default');
+$_SERVER['HTTP_HOST'] = $_SERVER['HTTP_HOST'] ?? 'localhost';
+$_SERVER['REQUEST_METHOD'] = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 require_once dirname(__DIR__, 4) . '/globals.php';
 require_once dirname(__DIR__) . '/src/Compat.php';
 require_once dirname(__DIR__) . '/src/Val.php';
