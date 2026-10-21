@@ -82,10 +82,19 @@
       if (!j.ok) { put(wait, '<span class="text-danger">' + esc(j.error) + '</span>'); history.pop(); return; }
       history.push({ role: 'assistant', content: j.reply + (j.changes && j.changes.length ? '\n[Proposed ' + j.changes.length + ' change(s).]' : '') });
       put(wait, md(j.reply) + (j.questions && j.questions.length ? '<ul class="mb-0 mt-2">' + j.questions.map(function (q) { return '<li>' + md(q) + '</li>'; }).join('') + '</ul>' : '') +
-        (j.chargeCents != null ? '<div class="g-why mt-1">This request: $' + (Number(j.chargeCents) / 100).toFixed(2) + '</div>' : ''));
+        (j.chargeCents != null ? '<div class="g-why mt-1">' + esc(chargeText(j)) + '</div>' : ''));
       if (j.changes && j.changes.length) plan(wait, j);
     });
   };
+
+  // $30 a month covers 100 requests; the server says which request this was and what it added.
+  function chargeText(j) {
+    var n = Number(j.requestNumber) || 0, inc = Number(j.includedRequests) || 0, c = Number(j.chargeCents) || 0;
+    if (!n || !inc) return 'This request: $' + (c / 100).toFixed(2);
+    if (n === 1) return 'Request 1 of ' + inc + ' this month. Starts this month\u2019s Assistant plan ($' + (c / 100).toFixed(2) + ').';
+    if (n <= inc) return 'Request ' + n + ' of ' + inc + ' included this month.';
+    return 'Request ' + n + ' this month (over ' + inc + '): $' + (c / 100).toFixed(2) + '.';
+  }
 
   function plan(container, j) {
     var groups = {};

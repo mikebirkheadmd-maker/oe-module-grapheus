@@ -53,6 +53,6 @@ $base = \Exetazo\Grapheus\Compat::moduleUrl();
         <button class="btn btn-sm btn-link" id="a-disconnect"><?php echo xlt('Disconnect the practice account'); ?></button>
     </div>
 </div>
-<script src="<?php echo attr($base); ?>/assets/grapheus-assistant.js?v=1"></script>
+<script src="<?php echo attr($base); ?>/assets/grapheus-assistant.js?v=2"></script>
 </body>
 </html>

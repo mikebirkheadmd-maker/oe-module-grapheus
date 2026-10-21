@@ -13,6 +13,6 @@ declare(strict_types=1);
 
 $v_major = '2';
 $v_minor = '0';
-$v_patch = '1';
+$v_patch = '2';
 $v_tag   = '';
 $v_database = 1;
