@@ -28,7 +28,8 @@ $base = \Exetazo\Grapheus\Compat::moduleUrl();
 <head>
     <title><?php echo xlt('Grapheus'); ?></title>
     <?php Header::setupHeader(['dompurify']); ?>
-    <link rel="stylesheet" href="<?php echo attr($base); ?>/assets/grapheus.css?v=1">
+    <link rel="icon" type="image/png" sizes="32x32" href="<?php echo attr($base); ?>/assets/img/grapheus-icon-32.png">
+    <link rel="stylesheet" href="<?php echo attr($base); ?>/assets/grapheus.css?v=3">
 </head>
 <body class="body_top">
 <div id="grapheus" class="container-fluid py-2"
@@ -37,7 +38,7 @@ $base = \Exetazo\Grapheus\Compat::moduleUrl();
      data-csrf="<?php echo attr(\Exetazo\Grapheus\Compat::csrfToken()); ?>"
      data-encounter-url="<?php echo attr(\Exetazo\Grapheus\Compat::webroot() . '/interface/patient_file/encounter/forms.php'); ?>">
     <div class="d-flex align-items-center mb-2">
-        <h4 class="mb-0 mr-2">Grapheus</h4><small class="text-muted"><?php echo xlt('AI scribe by Exetazo'); ?></small>
+        <img class="g-brand-icon mr-2" src="<?php echo attr($base); ?>/assets/img/grapheus-icon-32.png" srcset="<?php echo attr($base); ?>/assets/img/grapheus-icon-180.png 2x" width="22" height="22" alt=""><h4 class="mb-0 mr-2">Grapheus</h4><small class="text-muted"><?php echo xlt('AI scribe by Exetazo'); ?></small>
         <span class="ml-auto small" id="g-account"></span>
     </div>
     <div id="g-msg" class="alert d-none" role="status"></div>
