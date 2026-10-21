@@ -11,6 +11,10 @@
 
 declare(strict_types=1);
 
+// Module Manager loads this file on its own in an iframe, so start OpenEMR first
+// (login check, globals and the text()/xl()/attr() helpers).
+require_once dirname(__FILE__, 4) . '/globals.php';
+
 $module_config = 1;
 // Shown before the module is enabled too, so load our classes ourselves.
 if (!class_exists(\Exetazo\Grapheus\Compat::class)) {
