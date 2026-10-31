@@ -70,7 +70,7 @@ The module is free and open source. Transcription, AI drafting and the Assistant
 Details: https://scribe.exetazohealth.com
 
 ## Privacy and HIPAA
-Grapheus runs on AWS, with AI drafting on Amazon Bedrock under an AWS Business Associate Agreement, so protected health information stays in a HIPAA-eligible environment. Audio is deleted after transcription, and drafts are encrypted and deleted after 48 hours. Practices sign a BAA with Exetazo Health when they sign up.
+Grapheus runs on AWS, with AI drafting on Amazon Bedrock under an AWS Business Associate Agreement, so protected health information stays in a HIPAA-eligible environment. Audio is deleted after transcription, and transcripts and drafts are retained for 14 days for clinician review and model-quality evaluation, unless deleted earlier by the user. Audio is deleted after transcription. Practices sign a BAA with Exetazo Health when they sign up.
 
 ## Support
 - Email: support@exetazohealth.com
