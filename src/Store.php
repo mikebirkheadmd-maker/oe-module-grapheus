@@ -129,6 +129,36 @@ final class Store
     }
 
     /**
+     * Take the one right to add this draft to a chart. Null when it was already added or is
+     * being added by another request (a double click, a second tab). The returned token goes to
+     * releaseApply() if nothing could be added after all.
+     */
+    public static function claimApply(string $visitId, int $pid, int $encounter, int $userId): ?string
+    {
+        self::link($visitId, $pid, $encounter, $userId);
+        $token = 'adding:' . bin2hex(random_bytes(12));
+        Db::exec(
+            "UPDATE `grapheus_links` SET `applied_at` = NOW(), `applied_by` = ?, `summary` = ? WHERE `visit_id` = ? AND `applied_at` IS NULL",
+            [$userId, $token, $visitId]
+        );
+        $row = self::linkOf($visitId);
+        return Val::str($row['summary'] ?? '') === $token ? $token : null;
+    }
+
+    /** Nothing was added: free the draft again ($forget removes a link made only for this attempt). */
+    public static function releaseApply(string $visitId, string $token, bool $forget): void
+    {
+        if ($forget) {
+            Db::exec("DELETE FROM `grapheus_links` WHERE `visit_id` = ? AND `summary` = ?", [$visitId, $token]);
+            return;
+        }
+        Db::exec(
+            "UPDATE `grapheus_links` SET `applied_at` = NULL, `applied_by` = NULL, `summary` = NULL WHERE `visit_id` = ? AND `summary` = ?",
+            [$visitId, $token]
+        );
+    }
+
+    /**
      * @param array<string, mixed> $summary
      */
     public static function markApplied(string $visitId, int $pid, int $encounter, int $userId, array $summary): void

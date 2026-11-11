@@ -68,13 +68,14 @@
   var STATUS = { recording: 'Recording', transcribing: 'Transcribing', drafting: 'Writing', ready: 'Ready', error: 'Problem' };
   function list() {
     api('visits').then(function (j) {
+      if (!j.ok) { put($('g-list'), '<li class="list-group-item text-danger small">' + esc(j.error || 'The drafts could not be loaded.') + '</li>'); if (j.code === 'connect') load(); return; }
       var vs = (j.visits || []).sort(function (a, b) { return (b.thisEncounter ? 1 : 0) - (a.thisEncounter ? 1 : 0); });
       put($('g-list'), vs.length ? vs.map(function (v) {
         return '<li class="list-group-item list-group-item-action d-flex" data-id="' + esc(v.id) + '" style="cursor:pointer"><div><b>' + esc(v.label || 'Visit') + '</b>' +
           (v.thisEncounter ? ' <span class="badge badge-info">this encounter</span>' : '') + (v.appliedAt ? ' <span class="badge badge-success">added</span>' : '') +
           '<div class="small text-muted">' + new Date(v.startedAt).toLocaleString() + ' · ' + (v.mode === 'in_person' ? 'in person' : 'telehealth') + (v.faceMin != null ? ' · ' + esc(v.faceMin) + ' min' : '') + '</div></div>' +
           '<span class="ml-auto badge badge-' + (v.status === 'ready' ? 'success' : v.status === 'error' ? 'danger' : 'warning') + ' align-self-center">' + esc(STATUS[v.status] || v.status) + '</span></li>';
-      }).join('') : '<li class="list-group-item text-muted small">No drafts in the last 48 hours.</li>');
+      }).join('') : '<li class="list-group-item text-muted small">No drafts in the last 14 days.</li>');
       $('g-list').querySelectorAll('[data-id]').forEach(function (li) { li.onclick = function () { openVisit(li.dataset.id); }; });
     });
   }
@@ -83,21 +84,64 @@
 
   function openVisit(id) {
     clearTimeout(pollT);
+    $('g-apply').disabled = false;
     show('g-review'); msg('');
-    $('g-r-body').classList.add('d-none');
+    current = null;
+    ['g-r-body', 'g-r-failed', 'g-gap', 'g-r-tools'].forEach(function (x) { $(x).classList.add('d-none'); });
+    $('g-tools-msg').textContent = '';
     var poll = function () {
       api('status', null, '&visit=' + encodeURIComponent(id)).then(function (j) {
-        if (!j.ok) { $('g-r-progress').classList.remove('d-none'); $('g-r-progress').textContent = j.error; return; }
+        if (!j.ok) { $('g-r-progress').classList.remove('d-none'); $('g-r-progress').textContent = j.error || 'This draft could not be loaded.'; return; }
         var v = current = j.visit;
         $('g-r-title').textContent = (v.label || 'Visit') + ' — ' + new Date(v.startedAt).toLocaleString();
-        if (v.status === 'ready') { $('g-r-progress').classList.add('d-none'); return review(v); }
+        // Write again and Delete are there for a finished note and for one that failed.
+        $('g-r-tools').classList.toggle('d-none', v.status !== 'ready' && v.status !== 'error');
+        $('g-redo').classList.toggle('d-none', v.status !== 'ready');
+        if (v.status === 'ready') { $('g-r-progress').classList.add('d-none'); $('g-r-failed').classList.add('d-none'); return review(v); }
+        $('g-r-body').classList.add('d-none'); $('g-gap').classList.add('d-none');
         $('g-r-progress').classList.remove('d-none');
-        $('g-r-progress').textContent = v.status === 'error' ? 'Problem: ' + v.error : v.status === 'drafting' ? 'Writing the note, codes and prescriptions… (about a minute)' : 'Transcribing (' + v.transcribed + ' of ' + v.segments + ')…';
+        $('g-r-progress').className = 'alert ' + (v.status === 'error' ? 'alert-danger' : 'alert-info');
+        $('g-r-progress').textContent = v.status === 'error' ? 'No note was written: ' + v.error
+          : v.status === 'drafting' ? 'Writing the note, codes and prescriptions… (about a minute)'
+          : v.status === 'recording' ? 'Still recording. Press Stop in the recorder window to get the draft.'
+          : v.retrying ? 'The note-writing service was busy. Trying again by itself…'
+          : 'Transcribing (' + v.transcribed + ' of ' + v.segments + ' parts)…';
+        // A note that failed: the way to retry and the transcript are right here.
+        var raw = v.status === 'error' ? String(v.transcript || '') : '';
+        $('g-r-failed').classList.toggle('d-none', !raw.trim());
+        $('g-r-raw').textContent = raw;
         if (v.status !== 'error') pollT = setTimeout(poll, 4000);
       });
     };
     poll();
   }
+  function redo(ask) {
+    if (!current) return;
+    if (ask && !confirm('Write this note again from the same transcript? This draft is replaced. Nothing in the chart changes.')) return;
+    var id = current.id;
+    $('g-retry').disabled = true; $('g-redo').disabled = true; $('g-tools-msg').textContent = 'Starting…';
+    api('redo', { visit: id }).then(function (j) {
+      $('g-retry').disabled = false; $('g-redo').disabled = false; $('g-tools-msg').textContent = '';
+      if (!j.ok) return msg(j.error || 'Could not start.', 'danger');
+      openVisit(id);
+    });
+  }
+  $('g-retry').onclick = function () { redo(false); };   // nothing to replace: no note was written
+  $('g-redo').onclick = function () { redo(true); };
+  $('g-delete').onclick = function () {
+    if (!current || !confirm('Delete this draft and its transcript from Grapheus now? This cannot be undone. Anything already added to the chart stays.')) return;
+    api('clear', { visit: current.id }).then(function (j) { if (!j.ok) return msg(j.error || 'Could not delete.', 'danger'); clearTimeout(pollT); load(); });
+  };
+
+  // A draft recorded outside this encounter (extension, phone) carries only its label. When
+  // the label shares no name with the open chart, the clinician is asked before it is added.
+  function nameWords(s) { return String(s || '').toLowerCase().replace(/[^a-z ]/g, ' ').split(/\s+/).filter(function (w) { return w.length >= 3; }); }
+  function labelFitsPatient(label, patient) {
+    var a = nameWords(label), b = nameWords(patient);
+    if (!a.length || !b.length) return true;        // nothing to compare
+    return a.some(function (w) { return b.indexOf(w) >= 0; });
+  }
+  function linkedHere(id) { return ((state && state.links) || []).some(function (l) { return l.visit_id === id; }); }
 
   // ---------------------------------------------------------------- review
   var TIME = { established: [[40, '99215'], [30, '99214'], [20, '99213'], [10, '99212']], new: [[60, '99205'], [45, '99204'], [30, '99203'], [15, '99202']] };
@@ -106,10 +150,20 @@
   function review(v) {
     var r = v.result || {}, f = r.fields || {};
     $('g-r-body').classList.remove('d-none');
+    // Part of the recording never reached the transcript: say so above the note.
+    var gap = r.missingParts && r.missingParts.failed ? r.missingParts : null;
+    $('g-gap').classList.toggle('d-none', !gap);
+    $('g-gap').textContent = gap ? 'Part of this recording could not be transcribed (' + Number(gap.failed) + ' of ' + Number(gap.of) + ' parts, about 5 minutes each). The note covers only what was transcribed; the transcript shows where the gap is. Check the note against your memory of the visit before adding it.' : '';
+    var fits = linkedHere(v.id) || labelFitsPatient(v.label, state && state.patientName);
+    $('g-apply-to').textContent = state && state.patientName ? 'Goes into the open encounter of ' + state.patientName + '.' + (fits ? '' : ' This draft is labelled “' + (v.label || '') + '”: check it is the same patient.') : '';
+    $('g-apply-to').className = 'small mt-1 mb-0 ' + (fits ? 'text-muted' : 'text-danger font-weight-bold');
     var s = ['chief_complaint', 'hpi', 'ros', 'medications_mentioned', 'allergies_mentioned', 'history_mentioned']
       .filter(function (k) { return !none(f[k]); }).map(function (k) { return LABELS[k] + ': ' + f[k]; }).join('\n\n');
     $('g-s').value = s;
     $('g-o').value = f.physical_exam || '';
+    var tx = v.transcript || '';
+    $('g-tx-card').classList.toggle('d-none', !String(tx).trim());
+    $('g-tx').textContent = tx;
     var dx = (r.diagnoses || []).map(function (d) { return '- ' + d.description + (d.icd10 ? ' (' + d.icd10 + ')' : ''); }).join('\n');
     $('g-a').value = (f.assessment || '') + (dx ? '\n\nDiagnoses:\n' + dx : '');
     $('g-p').value = (f.plan || '') + (none(f.patient_instructions) ? '' : '\n\nPatient instructions: ' + f.patient_instructions);
@@ -151,7 +205,7 @@
     }).join('') || '<p class="small text-muted mb-0">None.</p>');
     var un = r.unclear || [];
     $('g-unclear-card').classList.toggle('d-none', !un.length);
-    put($('g-unclear'), un.map(function (u) { return '<li>' + esc(u.field) + ': heard “' + esc(u.as_heard) + '”' + (u.best_guess ? ' — best guess ' + esc(u.best_guess) : '') + '</li>'; }).join(''));
+    put($('g-unclear'), un.map(function (u) { return '<li>' + esc(LABELS[u.field] || String(u.field || '').replace(/_/g, ' ')) + ': heard “' + esc(u.as_heard) + '”' + (u.best_guess ? ' — best guess ' + esc(u.best_guess) : '') + '</li>'; }).join(''));
   }
 
   // ---------------------------------------------------------------- apply
@@ -168,6 +222,8 @@
     var rxRows = document.querySelectorAll('#g-rx .g-row');
     var payload = {
       visit: current.id,
+      // The patient and encounter this page is showing; the server refuses if OpenEMR has moved on.
+      pid: state.pid, encounter: state.encounter,
       soap: $('g-add-note').checked ? { subjective: $('g-s').value, objective: $('g-o').value, assessment: $('g-a').value, plan: plan } : null,
       problems: checked('pr').map(function (i) { var d = r.diagnoses[i]; return { title: d.description, icd10: d.icd10 }; }),
       diagnoses: checked('pr').map(function (i) { return r.diagnoses[i]; }),
@@ -180,11 +236,13 @@
       billing: checked('bi').map(function (i) { return r.billing[i]; }),
     };
     var n = payload.prescriptions.length;
-    if (!confirm('Add the checked items to this encounter?' + (n ? '\n\n' + n + ' prescription(s) will be ENTERED, not sent.' : '') + (payload.billing.length ? '\nFee-sheet codes will be entered unbilled.' : ''))) return;
+    var who = state.patientName || 'the open patient';
+    if (!linkedHere(current.id) && !labelFitsPatient(current.label, state.patientName) &&
+      !confirm('CHECK THE PATIENT\n\nThis draft is labelled “' + (current.label || '') + '”, but the open chart is ' + who + '.\n\nAdd it to ' + who + '’s encounter anyway?')) return;
+    if (!confirm('Add the checked items to ' + who + '’s encounter?' + (n ? '\n\n' + n + ' prescription(s) will be ENTERED, not sent.' : '') + (payload.billing.length ? '\nFee-sheet codes will be entered unbilled.' : ''))) return;
     $('g-apply').disabled = true;
     api('apply', payload).then(function (j) {
-      $('g-apply').disabled = false;
-      if (!j.ok) return msg(j.error, 'danger');
+      if (!j.ok) { $('g-apply').disabled = false; msg(j.error || 'Nothing was added.', 'danger'); window.scrollTo(0, 0); return; }
       var s = j.summary;
       msg('Added: ' + [s.note ? 'SOAP note' : '', s.problems.length ? s.problems.length + ' problem(s)' : '', s.allergies.length ? s.allergies.length + ' allergy(ies)' : '',
         s.prescriptions.length ? s.prescriptions.length + ' prescription(s), not sent' : '', s.billing.length ? s.billing.length + ' fee-sheet line(s), unbilled' : ''].filter(Boolean).join(', ') +
