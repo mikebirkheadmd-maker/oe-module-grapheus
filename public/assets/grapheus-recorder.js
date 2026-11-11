@@ -10,21 +10,42 @@
   function api(action, body, qs, raw, type) {
     var init = { method: 'POST', credentials: 'same-origin', headers: { 'X-CSRF-Token': CSRF } };
     if (raw) { init.body = raw; init.headers['Content-Type'] = type; } else { init.headers['Content-Type'] = 'application/json'; init.body = JSON.stringify(body || {}); }
-    return fetch(API + '?action=' + action + (qs || ''), init).then(function (r) { return r.json().catch(function () { return { ok: false, status: r.status }; }); });
+    return fetch(API + '?action=' + action + (qs || ''), init)
+      .then(function (r) { return r.json().catch(function () { return { ok: false, status: r.status }; }); }, function () { return { ok: false, offline: true }; });
   }
   function say(t) { $('msg').textContent = t; }
   function clock(s) { s = Math.max(0, Math.floor(s)); var h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(s % 60).padStart(2, '0'); }
   function mime() { var o = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4']; for (var i = 0; i < o.length; i++) if (MediaRecorder.isTypeSupported(o[i])) return o[i]; return ''; }
 
+  // A part that does not get through is tried again for about two minutes, kept, and tried
+  // once more at Stop: a short loss of connection must not cost five minutes of the visit.
+  var RETRY_WAITS = [2000, 4000, 8000, 15000, 30000, 60000], FINAL_WAITS = [2000, 5000, 10000];
+  // 'ok', 'retry' (no connection, a busy server) or 'refused' (it will never be taken).
+  function sendOnce(blob, n) {
+    return fetch(API + '?action=segment&visit=' + encodeURIComponent(R.id) + '&seq=' + n, { method: 'POST', credentials: 'same-origin', headers: { 'X-CSRF-Token': CSRF, 'Content-Type': blob.type }, body: blob })
+      .then(function (r) { return r.ok ? 'ok' : (r.status >= 500 || r.status === 408 || r.status === 429 ? 'retry' : 'refused'); }, function () { return 'retry'; });
+  }
+  function deliver(blob, n, waits, i) {
+    i = i || 0;
+    return sendOnce(blob, n).then(function (r) {
+      if (r !== 'retry' || i >= waits.length) return r;
+      return new Promise(function (ok) { setTimeout(ok, waits[i]); }).then(function () { return deliver(blob, n, waits, i + 1); });
+    });
+  }
   function upload(blob, n) {
     if (!blob.size) return;
-    R.uploads = R.uploads.then(function attempt(_, tries) {
-      tries = tries || 0;
-      return api('segment', null, '&visit=' + encodeURIComponent(R.id) + '&seq=' + n, blob, blob.type).then(function (j) {
-        if (!j.ok && tries < 3) return new Promise(function (ok) { setTimeout(ok, 2000 * (tries + 1)); }).then(function () { return attempt(null, tries + 1); });
-        if (!j.ok) R.failures++;
-      }, function () { if (tries < 3) return new Promise(function (ok) { setTimeout(ok, 2000 * (tries + 1)); }).then(function () { return attempt(null, tries + 1); }); R.failures++; });
+    R.uploads = R.uploads.then(function () {
+      return deliver(blob, n, R.stopping ? FINAL_WAITS : RETRY_WAITS).then(function (r) {
+        if (r === 'refused') R.failures++;
+        else if (r === 'retry') { R.waiting.push({ blob: blob, n: n }); if (!R.stopping) say('The connection dropped. This part is saved here and will be sent again.'); }
+      });
     });
+  }
+  // At Stop: one more try for every part still waiting.
+  function flushWaiting() {
+    return R.waiting.splice(0).reduce(function (p, w) {
+      return p.then(function () { return deliver(w.blob, w.n, FINAL_WAITS); }).then(function (r) { if (r !== 'ok') R.failures++; });
+    }, Promise.resolve());
   }
   function segment() {
     if (!R || R.stopping || R.pausedAt) return;
@@ -44,7 +65,7 @@
         if (!j.ok) { stream.getTracks().forEach(function (t) { t.stop(); }); $('state').textContent = 'Not started'; return say(j.error || 'Could not start.'); }
         var ctx = new (window.AudioContext || window.webkitAudioContext)();
         var an = ctx.createAnalyser(); an.fftSize = 1024; ctx.createMediaStreamSource(stream).connect(an);
-        R = { id: j.id, stream: stream, ctx: ctx, an: an, buf: new Float32Array(1024), seq: 0, uploads: Promise.resolve(), failures: 0, startedAt: Date.now(), pausedMs: 0, pausedAt: 0, silent: 0 };
+        R = { id: j.id, stream: stream, ctx: ctx, an: an, buf: new Float32Array(1024), seq: 0, uploads: Promise.resolve(), failures: 0, waiting: [], startedAt: Date.now(), pausedMs: 0, pausedAt: 0, silent: 0, lastTick: Date.now(), aliveAt: 0 };
         segment();
         $('pause').disabled = false; $('stop').disabled = false; $('state').textContent = 'Recording';
         R.timer = setInterval(tick, 500);
@@ -61,9 +82,17 @@
     var sum = 0; for (var i = 0; i < R.buf.length; i++) sum += R.buf[i] * R.buf[i];
     var rms = Math.sqrt(sum / R.buf.length);
     $('level').style.width = Math.min(100, Math.round(rms * 600)) + '%';
-    if (R.pausedAt) return;
-    R.silent = rms > 0.012 ? 0 : R.silent + 0.5;
-    if (R.silent >= WARN) say('No one has spoken for ' + Math.floor(R.silent / 60) + ' minutes. Recording stops at 5.'); else if (R.silent === 0) say('Keep this window open. It stops by itself after 5 silent minutes or 90 minutes.');
+    // Real elapsed time, not a count of ticks: a window in the background ticks more slowly.
+    var dt = Math.min(5, (now - R.lastTick) / 1000); R.lastTick = now;
+    if (R.pausedAt) {
+      // Still open: keeps a long pause from ending the visit, and the OpenEMR session alive.
+      if (now - R.aliveAt > 60000) { R.aliveAt = now; api('alive', { visit: R.id }); }
+      return;
+    }
+    // A sleeping audio engine reads as silence; wake it and do not count that as nobody speaking.
+    if (R.ctx.state !== 'running') { try { R.ctx.resume(); } catch (e) { /* closed */ } return; }
+    R.silent = rms > 0.012 ? 0 : R.silent + dt;
+    if (R.silent >= WARN) say('No one has spoken for ' + Math.floor(R.silent / 60) + ' minutes. Recording stops at 5.'); else if (R.silent === 0 && !R.waiting.length) say('Keep this window open. It stops by itself after 5 silent minutes or 90 minutes.');
     if (R.silent >= STOP) stop('auto: 5 minutes of silence');
     if (secs >= MAX_MIN * 60) stop('auto: 90-minute limit');
   }
@@ -84,14 +113,18 @@
     var done = function () {
       R.stream.getTracks().forEach(function (t) { t.stop(); });
       try { R.ctx.close(); } catch (e) { /* closed */ }
-      R.uploads.then(function () {
+      R.uploads.then(flushWaiting).then(function () {
         return api('finish', { visit: R.id, pausedSecs: Math.round(R.pausedMs / 1000), prepMin: Number(root.dataset.prep) || 0, tz: Intl.DateTimeFormat().resolvedOptions().timeZone, reason: reason, patientType: root.dataset.ptype });
       }).then(function (j) {
         window.removeEventListener('beforeunload', guard);
-        $('state').textContent = j.ok ? 'Done' : 'Problem';
+        var written = j.ok && !j.empty;
+        $('state').textContent = written ? 'Done' : j.offline ? 'No connection' : j.empty ? 'Nothing recorded' : 'Problem';
         $('dot').classList.add('paused');
-        say(j.ok ? 'The draft is being written. Review it in the encounter’s Grapheus tab. You can close this window.' + (R.failures ? ' (' + R.failures + ' part(s) did not upload.)' : '') : (j.error || 'Could not finish.'));
-        try { if (window.opener) window.opener.postMessage({ type: 'grapheus-finished', visit: j.ok ? R.id : null }, location.origin); } catch (e) { /* opener gone */ }
+        say(written ? 'The draft is being written. It appears where you started this recording. You can close this window.' + (R.failures ? ' ' + R.failures + ' part(s) of the recording did not upload, so the note may be incomplete.' : '')
+          : j.offline ? 'No connection while finishing. What was uploaded is safe: Grapheus finishes the draft by itself in about 20 minutes. Look in the Grapheus tab then.'
+          : j.empty ? 'Nothing was recorded' + (R.failures ? ': the recording could not be uploaded (' + R.failures + ' part(s)). Check the connection and record again.' : '. Check the microphone and record again.')
+          : (j.error || 'Could not finish.'));
+        try { if (window.opener) window.opener.postMessage({ type: 'grapheus-finished', visit: written || j.offline ? R.id : null }, location.origin); } catch (e) { /* opener gone */ }
       });
     };
     if (R.cur && R.cur.state !== 'inactive') { R.cur.addEventListener('stop', function () { setTimeout(done, 50); }, { once: true }); R.cur.stop(); } else done();

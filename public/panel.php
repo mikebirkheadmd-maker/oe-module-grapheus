@@ -66,7 +66,7 @@ $base = \Exetazo\Grapheus\Compat::moduleUrl();
         </div></div>
         <div class="card"><div class="card-body">
             <div class="d-flex"><h5 class="card-title"><?php echo xlt('Drafts'); ?></h5><button class="btn btn-sm btn-link ml-auto" id="g-refresh"><?php echo xlt('Refresh'); ?></button></div>
-            <p class="small text-muted"><?php echo xlt('Recordings from this encounter, plus anything you recorded with the Grapheus extension or phone app in the last 48 hours.'); ?></p>
+            <p class="small text-muted"><?php echo xlt('Recordings from this encounter, plus anything you recorded with the Grapheus extension or phone app in the last 14 days.'); ?></p>
             <ul class="list-group" id="g-list"></ul>
             <button class="btn btn-sm btn-link px-0 mt-2" id="g-disconnect"><?php echo xlt('Disconnect Grapheus'); ?></button>
         </div></div>
@@ -75,7 +75,13 @@ $base = \Exetazo\Grapheus\Compat::moduleUrl();
     <section id="g-review" class="d-none">
         <button class="btn btn-sm btn-link px-0" id="g-back">&larr; <?php echo xlt('Back'); ?></button>
         <h5 id="g-r-title"></h5>
-        <div id="g-r-progress" class="alert alert-info d-none"></div>
+        <div id="g-r-progress" class="alert alert-info d-none" role="status"></div>
+        <div id="g-r-failed" class="d-none mb-3">
+            <button class="btn btn-primary" id="g-retry" type="button"><?php echo xlt('Write this note again'); ?></button>
+            <span class="small text-muted ml-2"><?php echo xlt('Uses the transcript already saved. Nothing is recorded or charged again.'); ?></span>
+            <div class="card mt-3"><div class="card-body"><h6><?php echo xlt('Transcript'); ?></h6><pre class="small mb-0" id="g-r-raw" style="white-space:pre-wrap;max-height:320px;overflow:auto"></pre></div></div>
+        </div>
+        <div id="g-gap" class="alert alert-warning d-none" role="alert"></div>
         <div id="g-r-body" class="d-none">
             <p class="small text-muted"><?php echo xlt('Review and edit. Only checked items are added. Nothing already in the chart is changed.'); ?></p>
             <div class="card mb-3"><div class="card-body">
@@ -101,10 +107,18 @@ $base = \Exetazo\Grapheus\Compat::moduleUrl();
             <div class="card mb-3"><div class="card-body"><h6><?php echo xlt('Prescriptions'); ?> <small class="text-muted"><?php echo xlt('entered for you to review and send; never transmitted'); ?></small></h6><div id="g-rx"></div></div></div>
             <div class="card mb-3"><div class="card-body"><h6><?php echo xlt('Fee sheet'); ?> <small class="text-muted"><?php echo xlt('entered unbilled; you or your biller finalize'); ?></small></h6><p class="small text-muted" id="g-basis"></p><div id="g-billing"></div></div></div>
             <div class="card mb-3 d-none" id="g-unclear-card"><div class="card-body"><h6><?php echo xlt('Check these'); ?></h6><ul class="small mb-0" id="g-unclear"></ul></div></div>
+            <div class="card mb-3 d-none" id="g-tx-card"><div class="card-body"><h6><?php echo xlt('Transcript'); ?></h6><pre class="small mb-0" id="g-tx" style="white-space:pre-wrap;max-height:240px;overflow:auto"></pre></div></div>
             <button class="btn btn-primary btn-lg" id="g-apply"><?php echo xlt('Add checked items to this encounter'); ?></button>
+            <p class="small text-muted mt-1 mb-0" id="g-apply-to"></p>
+        </div>
+        <div id="g-r-tools" class="mt-4 d-none">
+            <button class="btn btn-sm btn-outline-secondary" id="g-redo" type="button"><?php echo xlt('Write this note again'); ?></button>
+            <button class="btn btn-sm btn-outline-danger ml-2" id="g-delete" type="button"><?php echo xlt('Delete this draft'); ?></button>
+            <span class="small ml-2" id="g-tools-msg"></span>
+            <p class="small text-muted mt-1 mb-0"><?php echo xlt('Write again: for a note that came out wrong; it replaces this draft from the same transcript. Delete: removes the draft and transcript from Grapheus now; anything already added to the chart stays.'); ?></p>
         </div>
     </section>
 </div>
-<script src="<?php echo attr($base); ?>/assets/grapheus-panel.js?v=1"></script>
+<script charset="utf-8" src="<?php echo attr($base); ?>/assets/grapheus-panel.js?v=3"></script>
 </body>
 </html>
