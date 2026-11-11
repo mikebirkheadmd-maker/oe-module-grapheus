@@ -87,6 +87,15 @@
     if (R.pausedAt) {
       // Still open: keeps a long pause from ending the visit, and the OpenEMR session alive.
       if (now - R.aliveAt > 60000) { R.aliveAt = now; api('alive', { visit: R.id }); }
+      // Paused captures nothing and never stops by itself: after 30 seconds say so, with a soft
+      // chime then and once a minute, and in the window title (the window may be behind the chart).
+      var pausedFor = Math.floor((now - R.pausedAt) / 1000);
+      if (pausedFor >= 30) {
+        say('PAUSED for ' + clock(pausedFor) + '. Nothing is being recorded. Press Resume to keep recording.');
+        $('msg').classList.add('g-paused-warn');
+        document.title = (pausedFor % 2 ? 'PAUSED ' : '!! PAUSED ') + clock(pausedFor);
+        if (pausedFor >= (R.chimeAt || 30)) { R.chimeAt = pausedFor + 60; chime(); try { window.focus(); } catch (e) { /* not allowed */ } }
+      }
       return;
     }
     // A sleeping audio engine reads as silence; wake it and do not count that as nobody speaking.
@@ -97,12 +106,34 @@
     if (secs >= MAX_MIN * 60) stop('auto: 90-minute limit');
   }
 
+  var TITLE = document.title;
+  function chime() {
+    try {
+      [0, 0.22].forEach(function (at) {
+        var o = R.ctx.createOscillator(), g = R.ctx.createGain();
+        o.frequency.value = 660; g.gain.value = 0.06; o.connect(g); g.connect(R.ctx.destination);
+        o.start(R.ctx.currentTime + at); o.stop(R.ctx.currentTime + at + 0.14);
+      });
+    } catch (e) { /* no sound device */ }
+  }
   $('pause').onclick = function () {
     if (!R || R.stopping) return;
-    if (!R.pausedAt) { R.pausedAt = Date.now(); clearTimeout(R.rotate); if (R.cur && R.cur.state !== 'inactive') R.cur.stop(); $('pause').textContent = 'Resume'; $('state').textContent = 'Paused'; $('dot').classList.add('paused'); }
+    $('msg').classList.remove('g-paused-warn'); document.title = TITLE;
+    if (!R.pausedAt) { R.pausedAt = Date.now(); R.chimeAt = 0; say('Paused. Nothing is recorded until you press Resume.'); clearTimeout(R.rotate); if (R.cur && R.cur.state !== 'inactive') R.cur.stop(); $('pause').textContent = 'Resume'; $('state').textContent = 'Paused'; $('dot').classList.add('paused'); }
     else { R.pausedMs += Date.now() - R.pausedAt; R.pausedAt = 0; R.silent = 0; segment(); $('pause').textContent = 'Pause'; $('state').textContent = 'Recording'; $('dot').classList.remove('paused'); }
   };
-  $('stop').onclick = function () { stop('stopped'); };
+  // Stop on a recording that is paused, or was paused for most of the visit: ask first, with the
+  // numbers, because what was not recorded cannot be recovered afterwards.
+  $('stop').onclick = function () {
+    if (!R || R.stopping) return;
+    var now = Date.now(), pausedFor = R.pausedAt ? (now - R.pausedAt) / 1000 : 0, wall = (now - R.startedAt) / 1000;
+    var rec = Math.max(0, wall - R.pausedMs / 1000 - pausedFor);
+    if ((wall >= 120 && rec < wall * 0.5) || (R.pausedAt && pausedFor >= 10)) {
+      if (!confirm((R.pausedAt ? 'The recording is PAUSED.\n\n' : '') + 'Only ' + clock(rec) + ' of this ' + clock(wall) + ' visit was recorded; the rest was paused and cannot be recovered.\n\n' +
+        'OK: stop and write the note from the ' + clock(rec) + ' that was recorded.\nCancel: go back' + (R.pausedAt ? ' and press Resume to keep recording.' : '.'))) return;
+    }
+    stop('stopped');
+  };
 
   function stop(reason) {
     if (!R || R.stopping) return;
@@ -110,6 +141,7 @@
     clearInterval(R.timer); clearTimeout(R.rotate);
     if (R.pausedAt) { R.pausedMs += Date.now() - R.pausedAt; R.pausedAt = 0; }
     $('pause').disabled = true; $('stop').disabled = true; $('state').textContent = 'Saving…';
+    $('msg').classList.remove('g-paused-warn'); document.title = TITLE;
     var done = function () {
       R.stream.getTracks().forEach(function (t) { t.stop(); });
       try { R.ctx.close(); } catch (e) { /* closed */ }

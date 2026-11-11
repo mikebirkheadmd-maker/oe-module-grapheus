@@ -152,8 +152,9 @@
     $('g-r-body').classList.remove('d-none');
     // Part of the recording never reached the transcript: say so above the note.
     var gap = r.missingParts && r.missingParts.failed ? r.missingParts : null;
-    $('g-gap').classList.toggle('d-none', !gap);
-    $('g-gap').textContent = gap ? 'Part of this recording could not be transcribed (' + Number(gap.failed) + ' of ' + Number(gap.of) + ' parts, about 5 minutes each). The note covers only what was transcribed; the transcript shows where the gap is. Check the note against your memory of the visit before adding it.' : '';
+    var mp = v.mostlyPaused, clk = function (s) { return Math.floor(s / 60) + ':' + String(Math.round(s) % 60).padStart(2, '0'); };
+    $('g-gap').classList.toggle('d-none', !gap && !mp);
+    $('g-gap').textContent = mp ? 'This recording was paused for ' + clk(Number(mp.pausedSecs)) + ' of ' + clk(Number(mp.totalSecs)) + '. Only the rest was recorded, so this note covers only that part of the visit. Check it before adding it.' : gap ? 'Part of this recording could not be transcribed (' + Number(gap.failed) + ' of ' + Number(gap.of) + ' parts, about 5 minutes each). The note covers only what was transcribed; the transcript shows where the gap is. Check the note against your memory of the visit before adding it.' : '';
     var fits = linkedHere(v.id) || labelFitsPatient(v.label, state && state.patientName);
     $('g-apply-to').textContent = state && state.patientName ? 'Goes into the open encounter of ' + state.patientName + '.' + (fits ? '' : ' This draft is labelled “' + (v.label || '') + '”: check it is the same patient.') : '';
     $('g-apply-to').className = 'small mt-1 mb-0 ' + (fits ? 'text-muted' : 'text-danger font-weight-bold');

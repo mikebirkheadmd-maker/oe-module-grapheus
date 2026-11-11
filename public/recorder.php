@@ -35,7 +35,7 @@ $patient = $sessPid > 0 ? \Exetazo\Grapheus\Val::map(getPatientData($sessPid, 'f
     <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?php echo xlt('Grapheus recorder'); ?></title>
     <link rel="icon" type="image/png" sizes="32x32" href="<?php echo attr($base); ?>/assets/img/grapheus-icon-32.png">
-    <link rel="stylesheet" href="<?php echo attr($base); ?>/assets/grapheus.css?v=3">
+    <link rel="stylesheet" href="<?php echo attr($base); ?>/assets/grapheus.css?v=4">
 </head>
 <body class="g-rec">
 <main id="rec" data-api="<?php echo attr($base . '/api.php'); ?>" data-csrf="<?php echo attr(\Exetazo\Grapheus\Compat::csrfToken()); ?>"
@@ -47,6 +47,6 @@ $patient = $sessPid > 0 ? \Exetazo\Grapheus\Val::map(getPatientData($sessPid, 'f
     <div class="g-rec-buttons"><button id="pause" disabled><?php echo xlt('Pause'); ?></button><button id="stop" class="g-stop" disabled><?php echo xlt('Stop & draft'); ?></button></div>
     <p class="g-small" id="msg"><?php echo xlt('Keep this window open. It stops by itself after 5 silent minutes or 90 minutes.'); ?></p>
 </main>
-<script charset="utf-8" src="<?php echo attr($base); ?>/assets/grapheus-recorder.js?v=2"></script>
+<script charset="utf-8" src="<?php echo attr($base); ?>/assets/grapheus-recorder.js?v=3"></script>
 </body>
 </html>
