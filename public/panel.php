@@ -119,6 +119,6 @@ $base = \Exetazo\Grapheus\Compat::moduleUrl();
         </div>
     </section>
 </div>
-<script charset="utf-8" src="<?php echo attr($base); ?>/assets/grapheus-panel.js?v=3"></script>
+<script charset="utf-8" src="<?php echo attr($base); ?>/assets/grapheus-panel.js?v=4"></script>
 </body>
 </html>
