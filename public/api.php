@@ -5,7 +5,7 @@
  * Signed-in OpenEMR session + CSRF token on every call; Grapheus keys stay on
  * the server.
  *
- *   Scribe (clinicians):  state, connect, disconnect, start, segment, finish, visits, status, apply
+ *   Scribe (clinicians):  state, connect, disconnect, start, segment, alive, finish, visits, status, redo, clear, apply
  *   Assistant (by role):  assistant-state, assistant-connect, assistant-disconnect, assistant-settings,
  *                         assistant-chat, assistant-find-patient, assistant-apply, assistant-undo
  *
@@ -153,6 +153,20 @@ switch ($action) {
             'tz' => Val::str($body['tz'] ?? '', 60), 'reason' => Val::str($body['reason'] ?? 'stopped', 60), 'patientType' => Val::str($body['patientType'] ?? '', 20),
         ], null, 60));
 
+    // The recorder window is still open (paused): keeps a long pause from ending the visit as
+    // abandoned, and keeps this OpenEMR session alive.
+    case 'alive':
+        Http::relay($needClient()->call('POST', '/api/visits/alive', ['id' => Val::str($body['visit'] ?? '')], null, 15));
+
+    // Write the note again from the transcript the visit already has (a wrong note, a Problem,
+    // or one stuck on Writing). Nothing in the chart changes.
+    case 'redo':
+        Http::relay($needClient()->call('POST', '/api/visits/redo', ['id' => Val::str($body['visit'] ?? '')], null, 30));
+
+    // Delete the draft and its transcript from Grapheus now. What was already added to the chart stays.
+    case 'clear':
+        Http::relay($needClient()->call('POST', '/api/visits/clear', ['id' => Val::str($body['visit'] ?? '')], null, 30));
+
     case 'visits':
         $r = $needClient()->call('GET', '/api/visits', null, null, 20);
         $links = Store::linksFor($pid, $encounter);
@@ -174,6 +188,13 @@ switch ($action) {
             Http::json(400, ['ok' => false, 'error' => 'Open the patient and the encounter first.']);
         }
         $visit = Val::str($body['visit'] ?? '');
+        // The page says which patient and encounter it was showing. If the session has moved to
+        // another patient since (a second tab), adding now would chart on the wrong patient.
+        $shownPid = Val::int($body['pid'] ?? 0);
+        $shownEncounter = Val::int($body['encounter'] ?? 0);
+        if (($shownPid > 0 && $shownPid !== $pid) || ($shownEncounter > 0 && $shownEncounter !== $encounter)) {
+            Http::json(409, ['ok' => false, 'code' => 'moved', 'error' => 'Nothing was added: a different patient or encounter is open in OpenEMR now than when this page loaded. Reload this page and check the patient.']);
+        }
         $link = Store::linkOf($visit);
         if ($link !== null && (Val::int($link['pid'] ?? 0) !== $pid || Val::int($link['encounter'] ?? 0) !== $encounter)) {
             Http::json(409, ['ok' => false, 'error' => 'This draft was recorded in a different patient or encounter. Open that encounter to add it.']);
@@ -186,10 +207,21 @@ switch ($action) {
         if (($check['body']['ok'] ?? false) !== true || Val::str(Val::map($check['body']['visit'] ?? null)['status'] ?? '') !== 'ready') {
             Http::json(400, ['ok' => false, 'error' => 'That draft is not ready or not yours.']);
         }
+        // One request at a time may add a draft: a double click or a second tab must not chart it twice.
+        $token = Store::claimApply($visit, $pid, $encounter, $userId);
+        if ($token === null) {
+            Http::json(409, ['ok' => false, 'error' => 'This draft is already being added to a chart, or was added a moment ago. Open the encounter to check.']);
+        }
         try {
             $summary = (new Applier($pid, $encounter, $userId, $userName, $groupName, $authorized))->apply($body);
         } catch (\RuntimeException $e) {
+            Store::releaseApply($visit, $token, $link === null);
             Http::json(500, ['ok' => false, 'error' => 'Nothing was added: ' . $e->getMessage()]);
+        } catch (\Throwable $e) {
+            // The transaction was rolled back. Say so plainly instead of a blank server error.
+            Store::releaseApply($visit, $token, $link === null);
+            error_log('Grapheus apply failed: ' . $e::class);   // never the message: it can carry chart text
+            Http::json(500, ['ok' => false, 'error' => 'Nothing was added: OpenEMR could not save the items. Try again; if it repeats, tell your administrator.']);
         }
         Store::markApplied($visit, $pid, $encounter, $userId, $summary);
         Http::json(200, ['ok' => true, 'summary' => $summary]);
