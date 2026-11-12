@@ -22,7 +22,11 @@ The two editions share features; they differ only where OpenEMR's internals chan
 **In every encounter: the "Grapheus" tab (clinicians)**
 - **Connect** your Grapheus account in one click. The key is stored encrypted with OpenEMR's CryptoGen.
 - **Start recording** opens a small recorder window (browsers block the microphone inside OpenEMR's frames). Pause any time; it stops on its own after 5 silent minutes or 90 minutes.
-- See drafts from this encounter, the Grapheus Chrome extension or the phone (last 48 hours).
+- See drafts from this encounter, the Grapheus Chrome extension or the phone (last 14 days).
+- **Never left without a note.** If the note-writing service is busy, Grapheus tries again by itself. If a note still fails, the page shows why, the transcript, and **Write this note again**. A note written with part of the recording missing says so at the top.
+- **Write this note again** and **Delete this draft** on every draft.
+- The recorder keeps a part that could not be uploaded and sends it again, and a long pause no longer ends the visit.
+- **Right patient, once.** A draft is added only to the patient and encounter the page was showing: if another patient was opened in a second tab, nothing is added. A draft whose label does not match the open chart asks first. A draft cannot be added twice.
 - **Review and add** what you approve:
   - SOAP note (editable before saving)
   - Problems with ICD-10 codes
@@ -70,7 +74,7 @@ The module is free and open source. Transcription, AI drafting and the Assistant
 Details: https://scribe.exetazohealth.com
 
 ## Privacy and HIPAA
-Grapheus runs on AWS, with AI drafting on Amazon Bedrock under an AWS Business Associate Agreement, so protected health information stays in a HIPAA-eligible environment. Audio is deleted after transcription, and drafts are encrypted and deleted after 48 hours. Practices sign a BAA with Exetazo Health when they sign up.
+Grapheus runs on AWS, with AI drafting on Amazon Bedrock under an AWS Business Associate Agreement, so protected health information stays in a HIPAA-eligible environment. Audio is deleted after transcription. Transcripts and drafts are retained for 14 days for clinician review and model-quality evaluation, unless deleted earlier by the user. Practices sign a BAA with Exetazo Health when they sign up.
 
 ## Support
 - Email: support@exetazohealth.com
