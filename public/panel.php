@@ -106,6 +106,7 @@ $base = \Exetazo\Grapheus\Compat::moduleUrl();
             <div class="card mb-3"><div class="card-body"><h6><?php echo xlt('Allergies'); ?></h6><div id="g-allergies"></div></div></div>
             <div class="card mb-3"><div class="card-body"><h6><?php echo xlt('Prescriptions'); ?> <small class="text-muted"><?php echo xlt('entered for you to review and send; never transmitted'); ?></small></h6><div id="g-rx"></div></div></div>
             <div class="card mb-3"><div class="card-body"><h6><?php echo xlt('Fee sheet'); ?> <small class="text-muted"><?php echo xlt('entered unbilled; you or your biller finalize'); ?></small></h6><p class="small text-muted" id="g-basis"></p><div id="g-billing"></div></div></div>
+            <div class="card mb-3 d-none border-info" id="g-consider-card"><div class="card-body"><h6><?php echo xlt('For you to consider'); ?> <small class="text-muted"><?php echo xlt('not part of the note; nothing here is ordered or written to the chart unless you add a task'); ?></small></h6><div id="g-consider"></div><p class="small text-muted mb-0" id="g-consider-msg"></p></div></div>
             <div class="card mb-3 d-none" id="g-unclear-card"><div class="card-body"><h6><?php echo xlt('Check these'); ?></h6><ul class="small mb-0" id="g-unclear"></ul></div></div>
             <div class="card mb-3 d-none" id="g-tx-card"><div class="card-body"><h6><?php echo xlt('Transcript'); ?></h6><pre class="small mb-0" id="g-tx" style="white-space:pre-wrap;max-height:240px;overflow:auto"></pre></div></div>
             <button class="btn btn-primary btn-lg" id="g-apply"><?php echo xlt('Add checked items to this encounter'); ?></button>
@@ -119,6 +120,20 @@ $base = \Exetazo\Grapheus\Compat::moduleUrl();
         </div>
     </section>
 </div>
-<script charset="utf-8" src="<?php echo attr($base); ?>/assets/grapheus-panel.js?v=4"></script>
+<div class="card mb-3 d-none" id="g-quality-card"><div class="card-body">
+    <h6><?php echo xlt('Quality measures for this patient'); ?> <small class="text-muted"><?php echo xlt('click one to document it as done'); ?></small></h6>
+    <div id="g-quality"></div>
+    <div class="border rounded p-2 mt-2 d-none" id="g-q-form">
+        <div class="font-weight-bold" id="g-q-title"></div><div class="small text-muted mb-2" id="g-q-ref"></div>
+        <div class="form-row mb-2"><div class="col-5"><label class="small mb-0" for="g-q-date"><?php echo xlt('Date done'); ?></label><input type="date" class="form-control form-control-sm" id="g-q-date"></div>
+            <div class="col-7"><label class="small mb-0" for="g-q-status"><?php echo xlt('Outcome'); ?></label><select class="form-control form-control-sm" id="g-q-status"><option value="met"><?php echo xlt('Done'); ?></option><option value="excluded"><?php echo xlt('Does not apply or patient declined'); ?></option></select></div></div>
+        <div id="g-q-fields"></div>
+        <label class="small mb-0" for="g-q-note"><?php echo xlt('Note'); ?></label><textarea class="form-control form-control-sm mb-2" id="g-q-note" rows="2" maxlength="1000"></textarea>
+        <button type="button" class="btn btn-sm btn-primary" id="g-q-save"><?php echo xlt('Save'); ?></button>
+        <button type="button" class="btn btn-sm btn-secondary" id="g-q-cancel"><?php echo xlt('Cancel'); ?></button>
+        <span class="small text-danger ml-2" id="g-q-msg"></span>
+    </div>
+</div></div>
+<script charset="utf-8" src="<?php echo attr($base); ?>/assets/grapheus-panel.js?v=6"></script>
 </body>
 </html>

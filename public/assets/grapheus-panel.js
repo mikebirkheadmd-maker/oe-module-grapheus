@@ -28,6 +28,7 @@
       if (!j.ok) return msg(j.error, 'danger');
       state = j;
       $('g-patient').textContent = j.patientName || '';
+      loadQuality();
       if (!j.connected) { $('g-account').textContent = ''; return show('g-connect'); }
       var a = j.account || {};
       $('g-account').textContent = (a.email || '') + (a.plan ? ' · ' + a.plan : '');
@@ -204,9 +205,122 @@
         ' <span class="badge badge-' + (b.confidence === 'high' ? 'success' : b.confidence === 'low' ? 'danger' : 'warning') + '">' + esc(b.confidence) + '</span>' +
         '<div class="small">' + esc(b.rationale) + '</div><div class="small text-muted">Document: ' + esc(b.documentation_needed) + '</div></div></div>';
     }).join('') || '<p class="small text-muted mb-0">None.</p>');
+    paintConsider(v);
     var un = r.unclear || [];
     $('g-unclear-card').classList.toggle('d-none', !un.length);
     put($('g-unclear'), un.map(function (u) { return '<li>' + esc(LABELS[u.field] || String(u.field || '').replace(/_/g, ' ')) + ': heard “' + esc(u.as_heard) + '”' + (u.best_guess ? ' — best guess ' + esc(u.best_guess) : '') + '</li>'; }).join(''));
+  }
+
+  // ---------------------------------------------------------------- quality measures
+  // Every measure for the open patient, with what is documented. Click one to document it as
+  // done (or as not applying). Available whenever a patient is open: before, during or after a visit.
+  var measures = [], qOpen = null, qAfter = null;
+  function loadQuality() {
+    if (!state || !state.pid) { $('g-quality-card').classList.add('d-none'); return; }
+    api('quality').then(function (j) { if (j.ok) { measures = j.measures || []; paintQuality(); } });
+  }
+  function paintQuality() {
+    $('g-quality-card').classList.remove('d-none');
+    var done = measures.filter(function (m) { return m.docs.length; }), rest = measures.filter(function (m) { return !m.docs.length; });
+    function row(m) {
+      var d = m.docs[0];
+      return '<div class="g-row"><div style="flex:1"><a href="#" data-q="' + esc(m.id) + '"><b>' + esc(m.name) + '</b></a> <span class="small text-muted">' + esc(m.ref) + '</span>' +
+        (d ? '<div class="small">' + (d.status === 'excluded' ? 'Does not apply / declined' : 'Done') + ' ' + esc(d.doneOn) + (Object.keys(d.details || {}).length ? ': ' + Object.keys(d.details).map(function (k) { return esc((m.fields || {})[k] || k) + ' ' + esc(d.details[k]); }).join(', ') : '') +
+          (d.note ? ' \u2014 ' + esc(d.note) : '') + (d.by ? ' <span class="text-muted">(' + esc(d.by) + ')</span>' : '') + ' <a href="#" class="text-danger" data-qvoid="' + d.id + '">remove</a>' + (m.docs.length > 1 ? ' <span class="text-muted">+' + (m.docs.length - 1) + ' earlier</span>' : '') + '</div>' : '') + '</div></div>';
+    }
+    put($('g-quality'), (done.length ? '<div class="small font-weight-bold">Documented</div>' + done.map(row).join('') : '') +
+      '<details' + (done.length ? '' : ' open') + '><summary class="small font-weight-bold mt-2">All measures (' + rest.length + ' not documented)</summary>' + rest.map(row).join('') + '</details>');
+    $('g-quality').querySelectorAll('[data-q]').forEach(function (a) { a.onclick = function (e) { e.preventDefault(); openQuality(a.getAttribute('data-q')); }; });
+    $('g-quality').querySelectorAll('[data-qvoid]').forEach(function (a) {
+      a.onclick = function (e) {
+        e.preventDefault();
+        if (!confirm('Remove this documentation entry?')) return;
+        api('quality-void', { pid: state.pid, doc: Number(a.getAttribute('data-qvoid')) }).then(function (j) { if (j.ok) { measures = j.measures; paintQuality(); } });
+      };
+    });
+  }
+  function openQuality(id, after) {
+    var m = measures.filter(function (x) { return x.id === id; })[0];
+    if (!m) return;
+    qOpen = m; qAfter = after || null;
+    $('g-quality-card').classList.remove('d-none');
+    $('g-q-title').textContent = m.name; $('g-q-ref').textContent = m.ref;
+    $('g-q-date').value = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+    $('g-q-status').value = 'met'; $('g-q-note').value = ''; $('g-q-msg').textContent = '';
+    put($('g-q-fields'), Object.keys(m.fields || {}).map(function (k) {
+      return '<label class="small mb-0">' + esc(m.fields[k]) + '</label><input type="text" class="form-control form-control-sm mb-2" data-qf="' + esc(k) + '" maxlength="200">';
+    }).join(''));
+    $('g-q-form').classList.remove('d-none');
+    $('g-q-form').scrollIntoView({ block: 'center' });
+  }
+  $('g-q-cancel').onclick = function () { $('g-q-form').classList.add('d-none'); qOpen = null; };
+  $('g-q-save').onclick = function () {
+    if (!qOpen) return;
+    var details = {};
+    $('g-q-fields').querySelectorAll('[data-qf]').forEach(function (i) { details[i.getAttribute('data-qf')] = i.value; });
+    $('g-q-save').disabled = true;
+    api('quality-save', { pid: state.pid, measure: qOpen.id, doneOn: $('g-q-date').value, status: $('g-q-status').value, details: details, note: $('g-q-note').value }).then(function (j) {
+      $('g-q-save').disabled = false;
+      if (!j.ok) { $('g-q-msg').textContent = j.error || 'That did not save.'; return; }
+      measures = j.measures; $('g-q-form').classList.add('d-none');
+      var after = qAfter; qOpen = null; qAfter = null;
+      paintQuality();
+      if (after) after();
+    });
+  };
+
+  // ---------------------------------------------------------------- for you to consider
+  // The private checklist (result.consider). "Add task" puts a message on this patient's chart
+  // (a New Orders message for a test), assigned to you; it is a task, never an order.
+  function paintConsider(v) {
+    var c = (v.result || {}).consider, actions = v.considerActions || {}, h = '';
+    var COST = { low: 'low cost', moderate: 'moderate cost', high: 'high cost' };
+    function badge(word, cls) { return '<span class="badge badge-' + cls + '">' + esc(word) + '</span> '; }
+    function row(kind, i, inner) {
+      var a = actions[kind + ':' + i] || '';
+      return '<div class="g-row"><div style="flex:1"' + (a ? ' class="text-muted"' : '') + '>' + inner + '</div><div>' +
+        (a === 'done' ? badge(kind === 'tests' ? 'Added' : kind === 'quality' ? 'Documented' : 'Task added', 'success') :
+          kind === 'quality' ? '<button type="button" class="btn btn-sm btn-outline-primary" data-qdoc="' + i + '"' + (a ? ' disabled' : '') + '>Document</button> ' :
+          '<button type="button" class="btn btn-sm btn-outline-primary" data-con="' + kind + ':' + i + ':task"' + (a ? ' disabled' : '') + '>' + (kind === 'tests' ? 'Add to lab order' : 'Add task') + '</button> ') +
+        (a === 'done' ? '' : '<button type="button" class="btn btn-sm btn-outline-secondary' + (a === 'skip' ? ' active' : '') + '" data-con="' + kind + ':' + i + ':skip">Not needed</button>') + '</div></div>';
+    }
+    function sec(title, kind, list, inner) {
+      if (!list || !list.length) return;
+      h += '<div class="small font-weight-bold mt-2">' + esc(title) + '</div>' + list.map(function (x, i) { return row(kind, i, inner(x)); }).join('');
+    }
+    if (c) {
+      sec('Possible missed diagnoses', 'diagnoses', c.diagnoses, function (d) { return '<b>' + esc(d.diagnosis) + '</b>' + (d.icd10 ? ' ' + esc(d.icd10) : '') + '<div class="small">' + esc(d.why) + '</div>' + (d.confirm ? '<div class="small text-muted">To confirm or exclude: ' + esc(d.confirm) + '</div>' : ''); });
+      sec('Labs and imaging to consider', 'tests', c.tests, function (t) { return '<b>' + esc(t.test) + '</b> ' + (t.cost ? badge(COST[t.cost], t.cost === 'high' ? 'warning' : t.cost === 'low' ? 'success' : 'secondary') : '') + '<span class="small">' + esc(t.reason) + '</span>' + (t.value ? '<div class="small text-muted">Worth it? ' + esc(t.value) + '</div>' : ''); });
+      sec('By condition', 'conditions', c.conditions, function (x) { return '<b>' + esc(x.condition) + '</b><div class="small">Testing: ' + esc(x.testing) + '</div><div class="small">Medication: ' + esc(x.medication) + '</div>'; });
+      sec('For your specialty', 'specialty', c.specialty, function (x) { return '<b>' + esc(x.item) + '</b><div class="small">' + esc(x.why) + '</div>'; });
+      sec('Quality measures', 'quality', c.quality, function (q) { return badge({ gap: 'Open', met: 'Met', unknown: 'Not documented' }[q.status] || '', q.status === 'gap' ? 'warning' : q.status === 'met' ? 'success' : 'secondary') + '<b>' + esc(q.name) + '</b> <span class="small text-muted">' + esc(q.ref) + '</span><div class="small">' + esc(q.why) + '</div>'; });
+      sec('Preventive care (USPSTF)', 'preventive', c.preventive, function (p) { return badge({ due: 'Due', unknown: 'Not documented', done: 'Done' }[p.status] || '', p.status === 'due' ? 'warning' : p.status === 'done' ? 'success' : 'secondary') + '<b>' + esc(p.name) + '</b> <span class="small text-muted">grade ' + esc(p.grade) + '</span><div class="small">' + esc(p.why) + '</div>'; });
+    }
+    $('g-consider-card').classList.toggle('d-none', !h);
+    put($('g-consider'), h);
+    $('g-consider').querySelectorAll('[data-qdoc]').forEach(function (b) {
+      b.onclick = function () {
+        var q = c.quality[Number(b.getAttribute('data-qdoc'))];
+        openQuality(q.id, function () {
+          api('consider-mark', { visit: v.id, kind: 'quality', index: Number(b.getAttribute('data-qdoc')), action: 'done' }).then(function (j) { if (j.ok) { v.considerActions = j.considerActions || {}; paintConsider(v); } });
+        });
+      };
+    });
+    $('g-consider').querySelectorAll('[data-con]').forEach(function (b) {
+      b.onclick = function () {
+        var p = b.getAttribute('data-con').split(':'), task = p[2] === 'task';
+        b.disabled = true;
+        $('g-consider-msg').textContent = '';
+        api(task ? 'consider-task' : 'consider-mark', { visit: v.id, kind: p[0], index: Number(p[1]), pid: state.pid, action: b.classList.contains('active') ? '' : 'skip' }).then(function (j) {
+          if (!j.ok) { b.disabled = false; $('g-consider-msg').textContent = j.error || 'That did not work.'; return; }
+          v.considerActions = j.considerActions || {};
+          paintConsider(v);
+          if (task) $('g-consider-msg').textContent = j.placed === 'order' ? (j.already ? j.name + ' is already on the pending lab order.' : 'Added ' + j.name + ' to the pending lab order in this encounter. Open the order to review and send it.')
+            : j.placed === 'archway' ? 'Added. It will already be picked when you open Create Order for this patient.'
+            : (p[0] === 'tests' ? 'This OpenEMR has no matching lab order to add it to, so a New Orders message was added to the patient\u2019s messages, assigned to you.' : 'Task added to this patient\u2019s messages, assigned to you.');
+        });
+      };
+    });
   }
 
   // ---------------------------------------------------------------- apply
