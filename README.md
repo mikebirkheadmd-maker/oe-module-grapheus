@@ -83,3 +83,21 @@ Grapheus runs on AWS, with AI drafting on Amazon Bedrock under an AWS Business A
 
 ## License
 GPL-3.0-or-later (see LICENSE), the same license as OpenEMR. The Grapheus service the module connects to is a separate, paid product of Exetazo Health.
+
+## For you to consider, lab orders and quality measures (2.0.6 / 1.0.6)
+
+Each draft comes with a private checklist that is never part of the note: possible missed
+diagnoses, labs and imaging to consider (with their cost to the patient), next steps by
+condition, reminders for the clinician's kind of practice, quality measures and preventive care.
+
+- **Add to lab order.** One tap on a suggested test adds it to a pending, unsent lab order in
+  the open encounter (later taps add to the same order), so it is already there when the
+  clinician opens the order. This needs a lab provider and orderable tests set up under
+  Procedures. Without them, or when no orderable test matches the name, the tap makes a
+  "New Orders" message on the patient's chart assigned to the clinician. Nothing is ever sent
+  to a lab.
+- **Add task.** Any other item becomes a message on the patient's chart assigned to the clinician.
+- **Quality measures.** With a patient open, the tab lists 30 common HEDIS and Medicare
+  measures. Click one to document it as done, with the result that measure needs, or as not
+  applying. It works before, during and after a visit, and each entry records who saved it.
+

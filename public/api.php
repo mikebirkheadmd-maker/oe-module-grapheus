@@ -24,6 +24,8 @@ use Exetazo\Grapheus\Assistant;
 use Exetazo\Grapheus\Client;
 use Exetazo\Grapheus\Compat;
 use Exetazo\Grapheus\Http;
+use Exetazo\Grapheus\Orders;
+use Exetazo\Grapheus\Quality;
 use Exetazo\Grapheus\Store;
 use Exetazo\Grapheus\Val;
 use OpenEMR\Common\Acl\AclMain;
@@ -225,6 +227,107 @@ switch ($action) {
         }
         Store::markApplied($visit, $pid, $encounter, $userId, $summary);
         Http::json(200, ['ok' => true, 'summary' => $summary]);
+
+    // Quality measures for the open patient: what is documented, and documenting one as done.
+    // Works with or without a visit, so it can be used before, during and after one.
+    case 'quality':
+        if ($pid <= 0) {
+            Http::json(400, ['ok' => false, 'error' => 'Open the patient first.']);
+        }
+        Http::json(200, ['ok' => true, 'pid' => $pid, 'measures' => Quality::forPatient($pid)]);
+
+    case 'quality-save':
+    case 'quality-void':
+        if ($pid <= 0 || Val::int($body['pid'] ?? 0) !== $pid) {
+            Http::json(409, ['ok' => false, 'code' => 'moved', 'error' => 'Nothing was saved: a different patient is open in OpenEMR now. Reload this page and check the patient.']);
+        }
+        if ($action === 'quality-void') {
+            Quality::void($pid, Val::int($body['doc'] ?? 0));
+        } else {
+            $saved = Quality::save($pid, $encounter, $userId, $body);
+            if (!$saved['ok']) {
+                Http::json(400, $saved);
+            }
+        }
+        Http::json(200, ['ok' => true, 'measures' => Quality::forPatient($pid)]);
+
+    // The private checklist beside the note. One tap on a suggested test puts it on the lab
+    // order the clinician will open (Orders::add). Where this OpenEMR has no lab ordering set
+    // up, and for every other kind of item, the tap makes a message on the patient's chart
+    // assigned to this clinician instead. Nothing is ever sent to a lab or pharmacy.
+    case 'consider-task':
+    case 'consider-mark':
+        $visit = Val::str($body['visit'] ?? '');
+        $kind = Val::str($body['kind'] ?? '');
+        $index = Val::int($body['index'] ?? -1);
+        $mark = $action === 'consider-task' ? 'done' : Val::str($body['action'] ?? '');
+        if (!in_array($kind, ['diagnoses', 'tests', 'conditions', 'preventive', 'specialty', 'quality'], true) || !in_array($mark, ['done', 'skip', ''], true)) {
+            Http::json(400, ['ok' => false, 'error' => 'Pick an item from the list.']);
+        }
+        if ($action === 'consider-task') {
+            if ($pid <= 0) {
+                Http::json(400, ['ok' => false, 'error' => 'Open the patient first.']);
+            }
+            $shownPid = Val::int($body['pid'] ?? 0);
+            $link = Store::linkOf($visit);
+            if (($shownPid > 0 && $shownPid !== $pid) || ($link !== null && Val::int($link['pid'] ?? 0) !== $pid)) {
+                Http::json(409, ['ok' => false, 'code' => 'moved', 'error' => 'Nothing was added: a different patient is open in OpenEMR now. Reload this page and check the patient.']);
+            }
+            // The words of the task come from Grapheus itself, never from the page.
+            $check = $needClient()->call('GET', '/api/visits/status?id=' . rawurlencode($visit), null, null, 30);
+            $v = Val::map($check['body']['visit'] ?? null);
+            $item = Val::map(Val::map(Val::map(Val::map($v['result'] ?? null)['consider'] ?? null)[$kind] ?? null)[$index] ?? null);
+            if (($check['body']['ok'] ?? false) !== true || $item === []) {
+                Http::json(400, ['ok' => false, 'error' => 'That item was not found. Reload the draft.']);
+            }
+            if (Val::str(Val::map($v['considerActions'] ?? null)[$kind . ':' . $index] ?? '') === 'done') {
+                Http::json(409, ['ok' => false, 'error' => 'This item was already added.']);
+            }
+            if ($kind === 'tests') {
+                try {
+                    $placed = Orders::add($pid, $encounter, $userId, $authorized, Val::str($item['test'] ?? ''), Val::str($item['reason'] ?? ''), $visit);
+                } catch (\Throwable $e) {
+                    error_log('Grapheus order failed: ' . $e::class);
+                    $placed = ['how' => 'none'];
+                }
+                if ($placed['how'] !== 'none') {
+                    $r = $needClient()->call('POST', '/api/visits/consider', ['id' => $visit, 'kind' => $kind, 'index' => $index, 'action' => 'done'], null, 30);
+                    Http::json(200, ['ok' => true, 'placed' => $placed['how'], 'order' => $placed['order'] ?? 0, 'name' => $placed['name'] ?? '', 'already' => $placed['already'] ?? false,
+                        'considerActions' => ($r['body']['ok'] ?? false) === true ? Val::map($r['body']['considerActions'] ?? null) : [$kind . ':' . $index => 'done']]);
+                }
+            }
+            $line = static fn (string ...$parts): string => implode(' - ', array_values(array_filter(array_map('trim', $parts), static fn ($x) => $x !== '')));
+            $text = match ($kind) {
+                'tests' => 'Consider ordering: ' . $line(Val::str($item['test'] ?? ''), Val::str($item['reason'] ?? ''), Val::str($item['cost'] ?? '') !== '' ? Val::str($item['cost']) . ' cost to the patient' : '', Val::str($item['value'] ?? '')),
+                'conditions' => 'Follow up: ' . $line(Val::str($item['condition'] ?? ''), 'Testing: ' . Val::str($item['testing'] ?? ''), 'Medication: ' . Val::str($item['medication'] ?? '')),
+                'preventive' => 'Preventive care: ' . $line(Val::str($item['name'] ?? ''), Val::str($item['why'] ?? '')),
+                'quality' => 'Quality measure: ' . $line(Val::str($item['name'] ?? ''), Val::str($item['why'] ?? '')),
+                'specialty' => 'Reminder: ' . $line(Val::str($item['item'] ?? ''), Val::str($item['why'] ?? '')),
+                default => 'Possible diagnosis to evaluate: ' . $line(Val::str($item['diagnosis'] ?? '') . (Val::str($item['icd10'] ?? '') !== '' ? ' (' . Val::str($item['icd10']) . ')' : ''), Val::str($item['why'] ?? ''), 'To confirm or exclude: ' . Val::str($item['confirm'] ?? '')),
+            };
+            $text = mb_substr($text . "\n(Suggested by Grapheus from the visit; not an order. Review before acting.)", 0, 1500);
+            foreach (['/pnotes.inc.php', '/pnotes.inc'] as $lib) {
+                if (is_file(Compat::fileroot() . '/library' . $lib)) {
+                    require_once Compat::fileroot() . '/library' . $lib;
+                    break;
+                }
+            }
+            if (!function_exists('addPnote')) {
+                Http::json(500, ['ok' => false, 'error' => 'Nothing was added: this OpenEMR has no patient messages.']);
+            }
+            try {
+                $noteId = addPnote($pid, $text, (string) $authorized, '1', $kind === 'tests' ? 'New Orders' : 'Chart Note', $userName);
+            } catch (\Throwable $e) {
+                error_log('Grapheus task failed: ' . $e::class);
+                Http::json(500, ['ok' => false, 'error' => 'Nothing was added: OpenEMR could not save the task.']);
+            }
+        }
+        $r = $needClient()->call('POST', '/api/visits/consider', ['id' => $visit, 'kind' => $kind, 'index' => $index, 'action' => $mark], null, 30);
+        $done = ($r['body']['ok'] ?? false) === true;
+        if ($action === 'consider-task') {
+            Http::json(200, ['ok' => true, 'placed' => 'task', 'task' => Val::int($noteId ?? 0), 'considerActions' => $done ? Val::map($r['body']['considerActions'] ?? null) : [$kind . ':' . $index => 'done']]);
+        }
+        Http::relay($r);
 
     // ------------------------------------------------------------ Grapheus Assistant
     case 'assistant-state':
